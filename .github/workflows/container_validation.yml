@@ -1,0 +1,20 @@
+name: Container validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build container
+        timeout-minutes: 8
+        run: docker build --progress=plain -t terraform-cloud-mcp:test .

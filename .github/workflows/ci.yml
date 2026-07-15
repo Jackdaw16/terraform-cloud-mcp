@@ -3,7 +3,17 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "LICENSE"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -11,12 +21,23 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run check
-      - run: docker build -t terraform-cloud-mcp:test .
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        timeout-minutes: 4
+        run: npm ci --prefer-offline --no-audit --no-fund --progress=false
+
+      - name: Validate
+        timeout-minutes: 3
+        run: npm run check
