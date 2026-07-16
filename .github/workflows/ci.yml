@@ -59,11 +59,11 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy terraform-mcp-api \
+          gcloud run services update terraform-mcp-api \
+            --to-latest \
             --image "$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:${{ github.sha }}" \
             --region "$REGION" \
             --project "$PROJECT_ID" \
             --platform managed \
             --allow-unauthenticated \
-            --no-traffic \
             --async
