@@ -57,7 +57,7 @@ jobs:
           docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:${{ github.sha }}
           docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:latest
 
-      - name: Deploy to Cloud Run
+      - name: Update services with last version
         run: |
           gcloud run services update terraform-mcp-api \
             --image "$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:${{ github.sha }}" \
@@ -65,3 +65,11 @@ jobs:
             --project "$PROJECT_ID" \
             --platform managed \
             --async
+
+      - name: Route traffic to latest revision
+        run: |
+          gcloud run services update-traffic terraform-mcp-api \
+            --to-latest \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --quiet
