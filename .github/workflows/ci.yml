@@ -59,7 +59,7 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy terraform-cloud-mcp \
+          gcloud run deploy terraform-mcp-api \
             --image "$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:${{ github.sha }}" \
             --region "$REGION" \
             --project "$PROJECT_ID" \
