@@ -1,6 +1,7 @@
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package*.json ./
+RUN npm install
 RUN npm ci
 COPY tsconfig.json eslint.config.js ./
 COPY src ./src
