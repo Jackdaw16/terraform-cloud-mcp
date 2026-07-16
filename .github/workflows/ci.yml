@@ -25,11 +25,9 @@ env:
 
 jobs:
   build-and-deploy:
-    name: build-and-deploy-${{ matrix.app.name }}
+    name: build-and-deploy-terraform-mcp
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    strategy:
-      fail-fast: false
 
     steps:
       - name: Checkout
@@ -52,7 +50,7 @@ jobs:
             -f "./Dockerfile" \
             -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:${{ github.sha }} \
             -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:latest \
-            terraform-mcp
+            .
 
       - name: Push Docker image to Artifact Registry
         run: |
