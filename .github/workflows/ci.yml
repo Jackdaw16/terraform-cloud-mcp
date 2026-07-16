@@ -18,26 +18,54 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: europe-southwest1
+  REPOSITORY: terraform-cloud-mcp
+
 jobs:
-  validate:
+  build-and-deploy:
+    name: build-and-deploy-${{ matrix.app.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      - name: Install dependencies
-        timeout-minutes: 4
-        run: npm ci --prefer-offline --no-audit --no-fund --progress=false
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
 
-      - name: Validate
-        timeout-minutes: 3
-        run: npm run check
+      - name: Configure Docker auth for Artifact Registry
+        run: gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f "./Dockerfile" \
+            -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:${{ github.sha }} \
+            -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:latest \
+            terraform-mcp
+
+      - name: Push Docker image to Artifact Registry
+        run: |
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:${{ github.sha }}
+          docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy terraform-cloud-mcp \
+            --image "$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/terraform-mcp:${{ github.sha }}" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --platform managed \
+            --allow-unauthenticated \
+            --no-traffic \
+            --async
