@@ -6,7 +6,9 @@ import { createTerraformMcpServer } from "../mcp/server.js";
 import { createBearerAuthMiddleware } from "./auth.js";
 
 export function createApp(config: AppConfig, client: TerraformCloudClient) {
-  const app = createMcpExpressApp();
+  const app = createMcpExpressApp({
+    host: "0.0.0.0",
+  });
 
   app.get("/health", (_request, response) => {
     response.status(200).json({ status: "ok", service: "terraform-cloud-mcp", version: "0.1.0" });
