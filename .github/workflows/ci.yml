@@ -64,5 +64,4 @@ jobs:
             --region "$REGION" \
             --project "$PROJECT_ID" \
             --platform managed \
-            --allow-unauthenticated \
             --async
