@@ -39,7 +39,16 @@ This project does **not** return:
 
 Organizations are restricted with `TERRAFORM_ALLOWED_ORGANIZATIONS`. Use a Terraform token with the minimum permissions required to read the intended workspaces and runs.
 
-`MCP_BEARER_TOKEN` adds optional static bearer authentication for MCP clients that can send an `Authorization` header. For direct ChatGPT testing, prefer OpenAI's Secure MCP Tunnel or add standards-compliant OAuth before exposing the service publicly. Never deploy an unauthenticated public endpoint that contains a server-side Terraform token.
+All `/mcp` routes are protected. `GET /health` remains public and `GET /.well-known/oauth-protected-resource` publishes the OAuth protected-resource metadata used by ChatGPT and OpenCode.
+
+Authentication supports two inbound modes:
+
+- OAuth 2.1 / OIDC bearer tokens from Auth0, validated with remote JWKS, `RS256`, issuer, audience, `exp`, `sub`, and the required scopes.
+- Optional `X-API-Key` for non-interactive scripts and internal clients.
+
+`MCP_BEARER_TOKEN` is still accepted as a legacy compatibility fallback, but it is no longer the recommended public integration path.
+
+Inbound OAuth or API key credentials are only used to protect this MCP server. They are never forwarded to Terraform. All Terraform API calls continue to use the server-side `TERRAFORM_API_TOKEN`.
 
 ## Requirements
 
@@ -66,6 +75,12 @@ MCP endpoint:
 http://localhost:3000/mcp
 ```
 
+Protected resource metadata:
+
+```text
+http://localhost:3000/.well-known/oauth-protected-resource
+```
+
 ## Validate
 
 ```bash
@@ -80,8 +95,16 @@ docker build -t terraform-cloud-mcp .
 | `TERRAFORM_API_TOKEN` | Yes | HCP Terraform API token. |
 | `TERRAFORM_ORGANIZATION` | Yes | Default organization used by tools. |
 | `TERRAFORM_ALLOWED_ORGANIZATIONS` | No | Comma-separated allowlist; defaults to the default organization. |
+| `PUBLIC_BASE_URL` | Yes | Public HTTPS base URL used in OAuth metadata and challenges. |
+| `AUTH_OAUTH_ENABLED` | No | Enables OAuth/JWT validation for `/mcp`; defaults to `true`. |
+| `AUTH_API_KEY_ENABLED` | No | Enables `X-API-Key` validation for `/mcp`; defaults to `false`. |
+| `OAUTH_ISSUER_URL` | Required when OAuth is enabled | Auth0 issuer URL, for example `https://tenant.us.auth0.com/`. |
+| `OAUTH_AUDIENCE` | Required when OAuth is enabled | Expected OAuth audience for incoming access tokens. |
+| `OAUTH_REQUIRED_SCOPES` | No | Space- or comma-separated scopes required on the access token; defaults to `terraform:read`. |
+| `OAUTH_ALLOWED_SUBJECTS` | No | Optional space- or comma-separated allowlist of accepted token `sub` values. |
+| `MCP_API_KEY_SECRET` | Required when API key auth is enabled | Secret matched against the `X-API-Key` header using a timing-safe comparison. |
 | `TERRAFORM_API_BASE_URL` | No | Defaults to `https://app.terraform.io/api/v2`. |
-| `MCP_BEARER_TOKEN` | No | Optional incoming bearer token, minimum 16 characters. |
+| `MCP_BEARER_TOKEN` | No | Optional legacy incoming bearer token, minimum 16 characters. |
 | `REQUEST_TIMEOUT_MS` | No | Terraform API timeout; defaults to 15000. |
 | `PORT` | No | HTTP port; defaults to 3000. |
 
@@ -90,7 +113,8 @@ docker build -t terraform-cloud-mcp .
 1. Run the server locally.
 2. Expose it securely over HTTPS using OpenAI Secure MCP Tunnel, or deploy it behind appropriate authentication.
 3. In ChatGPT, enable Developer mode under **Settings → Security and login**.
-4. Open **Settings → Plugins**, create a developer-mode app, and use the public `/mcp` URL.
+4. Configure Auth0 so ChatGPT or OpenCode can obtain access tokens for your `OAUTH_AUDIENCE` with the `terraform:read` scope.
+5. Open **Settings → Plugins**, create a developer-mode app, and use the public `/mcp` URL.
 5. Verify the six advertised tools and add the app to a new conversation.
 
 Example prompts:
@@ -114,7 +138,7 @@ ChatGPT / MCP client
         │ Streamable HTTP
         ▼
 terraform-cloud-mcp
-        │ JSON:API + Bearer token
+        │ JSON:API + TERRAFORM_API_TOKEN
         ▼
 HCP Terraform API
 ```
@@ -123,7 +147,6 @@ The HTTP transport is stateless, which suits container platforms such as Cloud R
 
 ## Roadmap
 
-- OAuth 2.1 authentication for a safely hosted ChatGPT integration.
 - Policy-check and cost-estimate summaries.
 - Run event timelines.
 - Optional write operations behind explicit feature flags and confirmation, beginning with queueing speculative plans only.
