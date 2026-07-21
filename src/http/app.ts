@@ -11,7 +11,7 @@ export function createApp(config: AppConfig, client: TerraformCloudClient) {
   });
 
   app.get("/health", (_request, response) => {
-    response.status(200).json({ status: "ok", service: "terraform-cloud-mcp", version: "0.1.0" });
+    response.status(200).json({ status: "ok", service: "terraform-cloud-mcp", version: "0.2.0" });
   });
 
   app.get("/.well-known/oauth-protected-resource", (_request, response) => {

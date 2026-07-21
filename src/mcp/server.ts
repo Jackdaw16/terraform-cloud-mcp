@@ -12,14 +12,21 @@ const commonAnnotations = {
   openWorldHint: true,
 };
 
-const oauthSecuritySchemes = [{ type: "oauth2", scopes: ["terraform:read"] }] as const;
-const oauthToolMetadata: Record<string, unknown> = { securitySchemes: oauthSecuritySchemes };
-
 export function createTerraformMcpServer(client: TerraformCloudClient, config: AppConfig): McpServer {
   const server = new McpServer({
     name: "terraform-cloud-mcp",
     version: "0.1.0",
   });
+
+  const oauthSecuritySchemes = config.auth.oauthEnabled
+  ? [
+      {
+        type: "oauth2" as const,
+        scopes: [...config.auth.oauthRequiredScopes],
+      },
+    ]
+  : [];;
+  const oauthToolMetadata: Record<string, unknown> = { securitySchemes: oauthSecuritySchemes };
 
   server.registerTool(
     "terraform_list_workspaces",
