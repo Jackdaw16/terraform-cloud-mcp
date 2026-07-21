@@ -41,13 +41,9 @@ export function createAuthMiddleware(config: AppConfig) {
 export function createProtectedResourceMetadata(config: AppConfig): ProtectedResourceMetadata {
   return {
     resource: config.auth.oauthAudience,
-    authorization_servers: config.auth.oauthEnabled && config.auth.oauthIssuerUrl ? [config.auth.oauthIssuerUrl] : [],
-    ...(config.auth.oauthEnabled
-      ? {
-          bearer_methods_supported: ["header"] as const,
-          scopes_supported: [...config.auth.oauthRequiredScopes],
-        }
-      : {}),
+    authorization_servers: config.auth.oauthIssuerUrl ? [config.auth.oauthIssuerUrl] : [],
+    bearer_methods_supported: ["header"],
+    scopes_supported: [...config.auth.oauthRequiredScopes],
     api_key_methods_supported: config.auth.apiKeyEnabled ? ["header:x-api-key"] : [],
   };
 }
