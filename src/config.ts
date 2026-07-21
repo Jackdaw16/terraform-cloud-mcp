@@ -53,6 +53,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     }
   }
 
+  if (!parsed.AUTH_OAUTH_ENABLED && !parsed.AUTH_API_KEY_ENABLED) {
+    throw new Error("At least one auth method must be enabled (AUTH_OAUTH_ENABLED or AUTH_API_KEY_ENABLED)");
+  }
+
   if (parsed.AUTH_API_KEY_ENABLED && !parsed.MCP_API_KEY_SECRET) {
     throw new Error("MCP_API_KEY_SECRET is required when AUTH_API_KEY_ENABLED=true");
   }
