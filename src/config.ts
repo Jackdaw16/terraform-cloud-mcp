@@ -10,11 +10,9 @@ const envSchema = z.object({
   AUTH_OAUTH_ENABLED: z.stringbool().default(true),
   AUTH_API_KEY_ENABLED: z.stringbool().default(false),
   OAUTH_ISSUER_URL: z.url().optional(),
-  OAUTH_AUDIENCE: z.string().min(1).optional(),
   OAUTH_REQUIRED_SCOPES: z.string().default("terraform:read"),
   OAUTH_ALLOWED_SUBJECTS: z.string().optional(),
   MCP_API_KEY_SECRET: z.string().min(16).optional().or(z.literal("")),
-  MCP_BEARER_TOKEN: z.string().min(16).optional().or(z.literal("")),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
 });
 
@@ -29,19 +27,19 @@ export interface AppConfig {
     readonly oauthEnabled: boolean;
     readonly apiKeyEnabled: boolean;
     readonly oauthIssuerUrl?: string;
-    readonly oauthAudience?: string;
+    readonly oauthAudience: string;
     readonly oauthRequiredScopes: readonly string[];
     readonly oauthAllowedSubjects?: ReadonlySet<string>;
     readonly apiKeySecret?: string;
     readonly metadataUrl: string;
   };
-  readonly mcpBearerToken?: string;
   readonly requestTimeoutMs: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = envSchema.parse(env);
   const publicBaseUrl = parsed.PUBLIC_BASE_URL.replace(/\/$/, "");
+  const oauthAudience = `${publicBaseUrl}/mcp`;
   const allowedOrganizations = new Set(splitEnvList(parsed.TERRAFORM_ALLOWED_ORGANIZATIONS ?? parsed.TERRAFORM_ORGANIZATION));
   const oauthRequiredScopes = splitEnvList(parsed.OAUTH_REQUIRED_SCOPES);
   const oauthAllowedSubjects = splitEnvList(parsed.OAUTH_ALLOWED_SUBJECTS);
@@ -49,9 +47,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (parsed.AUTH_OAUTH_ENABLED) {
     if (!parsed.OAUTH_ISSUER_URL) {
       throw new Error("OAUTH_ISSUER_URL is required when AUTH_OAUTH_ENABLED=true");
-    }
-    if (!parsed.OAUTH_AUDIENCE) {
-      throw new Error("OAUTH_AUDIENCE is required when AUTH_OAUTH_ENABLED=true");
     }
     if (oauthRequiredScopes.length === 0) {
       throw new Error("OAUTH_REQUIRED_SCOPES must define at least one scope when AUTH_OAUTH_ENABLED=true");
@@ -73,13 +68,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       oauthEnabled: parsed.AUTH_OAUTH_ENABLED,
       apiKeyEnabled: parsed.AUTH_API_KEY_ENABLED,
       ...(parsed.OAUTH_ISSUER_URL ? { oauthIssuerUrl: normalizeIssuerUrl(parsed.OAUTH_ISSUER_URL) } : {}),
-      ...(parsed.OAUTH_AUDIENCE ? { oauthAudience: parsed.OAUTH_AUDIENCE } : {}),
+      oauthAudience,
       oauthRequiredScopes,
       ...(oauthAllowedSubjects.length > 0 ? { oauthAllowedSubjects: new Set(oauthAllowedSubjects) } : {}),
       ...(parsed.MCP_API_KEY_SECRET ? { apiKeySecret: parsed.MCP_API_KEY_SECRET } : {}),
       metadataUrl: `${publicBaseUrl}/.well-known/oauth-protected-resource`,
     },
-    ...(parsed.MCP_BEARER_TOKEN ? { mcpBearerToken: parsed.MCP_BEARER_TOKEN } : {}),
     requestTimeoutMs: parsed.REQUEST_TIMEOUT_MS,
   };
 }

@@ -10,7 +10,6 @@ describe("loadConfig", () => {
       TERRAFORM_ORGANIZATION: "example-org",
       AUTH_OAUTH_ENABLED: "true",
       OAUTH_ISSUER_URL: "https://tenant.us.auth0.com",
-      OAUTH_AUDIENCE: "https://terraform-cloud-mcp",
       OAUTH_REQUIRED_SCOPES: "terraform:read terraform:admin",
       OAUTH_ALLOWED_SUBJECTS: "user-1,user-2",
       AUTH_API_KEY_ENABLED: "true",
@@ -20,13 +19,14 @@ describe("loadConfig", () => {
 
     expect(config.publicBaseUrl).toBe("https://mcp.example.com");
     expect(config.auth.oauthIssuerUrl).toBe("https://tenant.us.auth0.com/");
+    expect(config.auth.oauthAudience).toBe("https://mcp.example.com/mcp");
     expect(config.auth.oauthRequiredScopes).toEqual(["terraform:read", "terraform:admin"]);
     expect([...config.auth.oauthAllowedSubjects ?? []]).toEqual(["user-1", "user-2"]);
     expect(config.auth.apiKeySecret).toBe("super-secret-api-key");
     expect(config.auth.metadataUrl).toBe("https://mcp.example.com/.well-known/oauth-protected-resource");
   });
 
-  it("requires issuer and audience when OAuth is enabled", () => {
+  it("requires issuer when OAuth is enabled", () => {
     expect(() =>
       loadConfig({
         PORT: "3000",

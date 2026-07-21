@@ -16,18 +16,15 @@ export function createAuthMiddleware(config: AppConfig) {
 
   return async (request: Request, response: Response, next: NextFunction): Promise<void> => {
     const apiKey = request.header("x-api-key") ?? "";
-    if (config.auth.apiKeySecret && safeEqual(apiKey, config.auth.apiKeySecret)) {
+    if (config.auth.apiKeyEnabled &&
+      config.auth.apiKeySecret &&
+      safeEqual(apiKey, config.auth.apiKeySecret)) {
       next();
       return;
     }
 
     const authorization = request.header("authorization");
     const bearerToken = authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : "";
-
-    if (config.mcpBearerToken && safeEqual(bearerToken, config.mcpBearerToken)) {
-      next();
-      return;
-    }
 
     if (oauthVerifier && bearerToken) {
       const authenticated = await oauthVerifier(bearerToken);
@@ -43,7 +40,7 @@ export function createAuthMiddleware(config: AppConfig) {
 
 export function createProtectedResourceMetadata(config: AppConfig): ProtectedResourceMetadata {
   return {
-    resource: `${config.publicBaseUrl}/mcp`,
+    resource: config.auth.oauthAudience,
     authorization_servers: config.auth.oauthIssuerUrl ? [config.auth.oauthIssuerUrl] : [],
     bearer_methods_supported: ["header"],
     scopes_supported: [...config.auth.oauthRequiredScopes],
@@ -60,8 +57,8 @@ function safeEqual(actual: string, expected: string): boolean {
 function createOAuthAccessTokenVerifier(config: AppConfig) {
   const issuer = config.auth.oauthIssuerUrl;
   const audience = config.auth.oauthAudience;
-  if (!issuer || !audience) {
-    throw new Error("OAuth verification is enabled but issuer or audience is missing");
+  if (!issuer) {
+    throw new Error("OAuth verification is enabled but issuer is missing");
   }
 
   const jwks = createRemoteJWKSet(new URL(".well-known/jwks.json", issuer));

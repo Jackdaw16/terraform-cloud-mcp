@@ -61,6 +61,26 @@ describe("HTTP auth", () => {
     });
   });
 
+  it("rejects X-API-Key when AUTH_API_KEY_ENABLED is false", async () => {
+    const fixture = requireOAuthFixture(oauthFixture);
+    const app = createApp(
+      createConfig({
+        oauthIssuerUrl: fixture.issuerUrl,
+        apiKeyEnabled: false,
+        apiKeySecret: "super-secret-api-key",
+      }),
+      {} as never,
+    );
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        headers: { "x-api-key": "super-secret-api-key" },
+      });
+
+      expect(response.status).toBe(401);
+    });
+  });
+
   it("accepts a valid OAuth access token with the required scope", async () => {
     const fixture = requireOAuthFixture(oauthFixture);
     const token = await fixture.sign("user-1", "terraform:read");
@@ -111,6 +131,7 @@ function createConfig(overrides?: {
   oauthIssuerUrl?: string;
   oauthAllowedSubjects?: ReadonlySet<string>;
   apiKeyEnabled?: boolean;
+  apiKeySecret?: string;
 }): AppConfig {
   return {
     port: 3000,
@@ -123,10 +144,12 @@ function createConfig(overrides?: {
       oauthEnabled: true,
       apiKeyEnabled: overrides?.apiKeyEnabled ?? false,
       oauthIssuerUrl: overrides?.oauthIssuerUrl,
-      oauthAudience: "https://terraform-cloud-mcp",
+      oauthAudience: "https://mcp.example.com/mcp",
       oauthRequiredScopes: ["terraform:read"],
       ...(overrides?.oauthAllowedSubjects ? { oauthAllowedSubjects: overrides.oauthAllowedSubjects } : {}),
-      ...(overrides?.apiKeyEnabled ? { apiKeySecret: "super-secret-api-key" } : {}),
+      ...((overrides?.apiKeyEnabled || overrides?.apiKeySecret)
+        ? { apiKeySecret: overrides.apiKeySecret ?? "super-secret-api-key" }
+        : {}),
       metadataUrl: "https://mcp.example.com/.well-known/oauth-protected-resource",
     },
     requestTimeoutMs: 15000,
@@ -190,7 +213,7 @@ async function createOAuthFixture(): Promise<OAuthFixture> {
       new SignJWT({ scope })
         .setProtectedHeader({ alg: "RS256", kid: "test-key" })
         .setIssuer(issuerUrl)
-        .setAudience("https://terraform-cloud-mcp")
+        .setAudience("https://mcp.example.com/mcp")
         .setSubject(sub)
         .setIssuedAt()
         .setExpirationTime("5m")
