@@ -38,7 +38,7 @@ export interface AppConfig {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = envSchema.parse(env);
-  const publicBaseUrl = parsed.PUBLIC_BASE_URL.replace(/\/$/, "");
+  const publicBaseUrl = parsed.PUBLIC_BASE_URL.replace(/\/+$/, "");
   const oauthAudience = `${publicBaseUrl}/mcp`;
   const allowedOrganizations = new Set(splitEnvList(parsed.TERRAFORM_ALLOWED_ORGANIZATIONS ?? parsed.TERRAFORM_ORGANIZATION));
   const oauthRequiredScopes = splitEnvList(parsed.OAUTH_REQUIRED_SCOPES);
