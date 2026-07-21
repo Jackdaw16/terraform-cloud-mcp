@@ -19,13 +19,13 @@ export function createTerraformMcpServer(client: TerraformCloudClient, config: A
   });
 
   const oauthSecuritySchemes = config.auth.oauthEnabled
-  ? [
-      {
-        type: "oauth2" as const,
-        scopes: [...config.auth.oauthRequiredScopes],
-      },
-    ]
-  : [];;
+    ? [
+        {
+          type: "oauth2" as const,
+          scopes: [...config.auth.oauthRequiredScopes],
+        },
+      ]
+    : [];
   const oauthToolMetadata: Record<string, unknown> = { securitySchemes: oauthSecuritySchemes };
 
   server.registerTool(
