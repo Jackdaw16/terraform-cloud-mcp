@@ -3,7 +3,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import type { AppConfig } from "../config.js";
 import type { TerraformCloudClient } from "../terraform/client.js";
 import { createTerraformMcpServer } from "../mcp/server.js";
-import { createBearerAuthMiddleware } from "./auth.js";
+import { createAuthMiddleware, createProtectedResourceMetadata } from "./auth.js";
 
 export function createApp(config: AppConfig, client: TerraformCloudClient) {
   const app = createMcpExpressApp({
@@ -11,10 +11,14 @@ export function createApp(config: AppConfig, client: TerraformCloudClient) {
   });
 
   app.get("/health", (_request, response) => {
-    response.status(200).json({ status: "ok", service: "terraform-cloud-mcp", version: "0.1.0" });
+    response.status(200).json({ status: "ok", service: "terraform-cloud-mcp", version: "0.2.0" });
   });
 
-  app.use("/mcp", createBearerAuthMiddleware(config.mcpBearerToken));
+  app.get("/.well-known/oauth-protected-resource", (_request, response) => {
+    response.status(200).json(createProtectedResourceMetadata(config));
+  });
+
+  app.use("/mcp", createAuthMiddleware(config));
 
   app.post("/mcp", async (request, response) => {
     const server = createTerraformMcpServer(client, config);

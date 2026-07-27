@@ -18,6 +18,16 @@ export function createTerraformMcpServer(client: TerraformCloudClient, config: A
     version: "0.1.0",
   });
 
+  const oauthSecuritySchemes = config.auth.oauthEnabled
+    ? [
+        {
+          type: "oauth2" as const,
+          scopes: [...config.auth.oauthRequiredScopes],
+        },
+      ]
+    : [];
+  const oauthToolMetadata: Record<string, unknown> = { securitySchemes: oauthSecuritySchemes };
+
   server.registerTool(
     "terraform_list_workspaces",
     {
@@ -34,6 +44,7 @@ export function createTerraformMcpServer(client: TerraformCloudClient, config: A
           .default("name"),
       },
       annotations: commonAnnotations,
+      _meta: oauthToolMetadata,
     },
     async ({ organization, searchName, page, pageSize, sort }) => {
       try {
@@ -68,6 +79,7 @@ export function createTerraformMcpServer(client: TerraformCloudClient, config: A
         workspaceName: z.string().min(1).optional(),
       },
       annotations: commonAnnotations,
+      _meta: oauthToolMetadata,
     },
     async ({ workspaceId, organization, workspaceName }) => {
       try {
@@ -99,6 +111,7 @@ export function createTerraformMcpServer(client: TerraformCloudClient, config: A
         search: z.string().min(1).optional().describe("Search run ID, message, commit SHA, or VCS user."),
       },
       annotations: commonAnnotations,
+      _meta: oauthToolMetadata,
     },
     async ({ workspaceId, page, pageSize, status, statusGroup, search }) => {
       try {
@@ -131,6 +144,7 @@ export function createTerraformMcpServer(client: TerraformCloudClient, config: A
         runId: z.string().min(1),
       },
       annotations: commonAnnotations,
+      _meta: oauthToolMetadata,
     },
     async ({ runId }) => {
       try {
@@ -152,6 +166,7 @@ export function createTerraformMcpServer(client: TerraformCloudClient, config: A
         runId: z.string().min(1),
       },
       annotations: commonAnnotations,
+      _meta: oauthToolMetadata,
     },
     async ({ runId }) => {
       try {
@@ -179,6 +194,7 @@ export function createTerraformMcpServer(client: TerraformCloudClient, config: A
         workspaceName: z.string().min(1),
       },
       annotations: commonAnnotations,
+      _meta: oauthToolMetadata,
     },
     async ({ organization, workspaceName }) => {
       try {
