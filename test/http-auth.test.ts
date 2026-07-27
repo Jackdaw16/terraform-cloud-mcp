@@ -83,7 +83,7 @@ describe("HTTP auth", () => {
 
   it("accepts a valid OAuth access token with the required scope", async () => {
     const fixture = requireOAuthFixture(oauthFixture);
-    const token = await fixture.sign("user-1", "terraform:read");
+    const token = await fixture.sign({ sub: "user-1", scope: "terraform:read" });
     const app = createApp(createConfig({ oauthIssuerUrl: fixture.issuerUrl }), {} as never);
 
     await withServer(app, async (baseUrl) => {
@@ -95,10 +95,47 @@ describe("HTTP auth", () => {
     });
   });
 
-  it("rejects OAuth tokens without the required scope or allowed subject", async () => {
+  it("rejects OAuth tokens with an incorrect audience", async () => {
     const fixture = requireOAuthFixture(oauthFixture);
-    const missingScopeToken = await fixture.sign("user-1", "profile");
-    const disallowedSubjectToken = await fixture.sign("user-2", "terraform:read");
+    const token = await fixture.sign({
+      sub: "user-1",
+      scope: "terraform:read",
+      audience: "https://mcp.example.com/not-mcp",
+    });
+    const app = createApp(createConfig({ oauthIssuerUrl: fixture.issuerUrl }), {} as never);
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toContain('error="invalid_token"');
+    });
+  });
+
+  it("rejects OAuth tokens with an incorrect issuer", async () => {
+    const fixture = requireOAuthFixture(oauthFixture);
+    const token = await fixture.sign({
+      sub: "user-1",
+      scope: "terraform:read",
+      issuer: "https://issuer.example.com/",
+    });
+    const app = createApp(createConfig({ oauthIssuerUrl: fixture.issuerUrl }), {} as never);
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toContain('error="invalid_token"');
+    });
+  });
+
+  it("rejects OAuth tokens from a disallowed subject", async () => {
+    const fixture = requireOAuthFixture(oauthFixture);
+    const token = await fixture.sign({ sub: "user-2", scope: "terraform:read" });
     const app = createApp(
       createConfig({
         oauthIssuerUrl: fixture.issuerUrl,
@@ -108,15 +145,47 @@ describe("HTTP auth", () => {
     );
 
     await withServer(app, async (baseUrl) => {
-      const scopeResponse = await fetch(`${baseUrl}/mcp`, {
-        headers: { authorization: `Bearer ${missingScopeToken}` },
+      const response = await fetch(`${baseUrl}/mcp`, {
+        headers: { authorization: `Bearer ${token}` },
       });
-      expect(scopeResponse.status).toBe(401);
 
-      const subjectResponse = await fetch(`${baseUrl}/mcp`, {
-        headers: { authorization: `Bearer ${disallowedSubjectToken}` },
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toContain('error="invalid_token"');
+    });
+  });
+
+  it("rejects expired OAuth tokens", async () => {
+    const fixture = requireOAuthFixture(oauthFixture);
+    const token = await fixture.sign({
+      sub: "user-1",
+      scope: "terraform:read",
+      issuedAt: Math.floor(Date.now() / 1000) - 600,
+      expirationTime: Math.floor(Date.now() / 1000) - 300,
+    });
+    const app = createApp(createConfig({ oauthIssuerUrl: fixture.issuerUrl }), {} as never);
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        headers: { authorization: `Bearer ${token}` },
       });
-      expect(subjectResponse.status).toBe(401);
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get("www-authenticate")).toContain('error="invalid_token"');
+    });
+  });
+
+  it("rejects OAuth tokens without the required scope as insufficient_scope", async () => {
+    const fixture = requireOAuthFixture(oauthFixture);
+    const token = await fixture.sign({ sub: "user-1", scope: "profile" });
+    const app = createApp(createConfig({ oauthIssuerUrl: fixture.issuerUrl }), {} as never);
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.headers.get("www-authenticate")).toContain('error="insufficient_scope"');
     });
   });
 });
@@ -124,7 +193,16 @@ describe("HTTP auth", () => {
 interface OAuthFixture {
   readonly issuerUrl: string;
   readonly close: () => Promise<void>;
-  readonly sign: (sub: string, scope: string) => Promise<string>;
+  readonly sign: (claims: OAuthSignClaims) => Promise<string>;
+}
+
+interface OAuthSignClaims {
+  readonly sub: string;
+  readonly scope: string;
+  readonly issuer?: string;
+  readonly audience?: string | readonly string[];
+  readonly issuedAt?: number;
+  readonly expirationTime?: number | string;
 }
 
 function createConfig(overrides?: {
@@ -209,14 +287,14 @@ async function createOAuthFixture(): Promise<OAuthFixture> {
   return {
     issuerUrl,
     close: () => closeServer(server),
-    sign: (sub: string, scope: string) =>
-      new SignJWT({ scope })
+    sign: (claims: OAuthSignClaims) =>
+      new SignJWT({ scope: claims.scope })
         .setProtectedHeader({ alg: "RS256", kid: "test-key" })
-        .setIssuer(issuerUrl)
-        .setAudience("https://mcp.example.com/mcp")
-        .setSubject(sub)
-        .setIssuedAt()
-        .setExpirationTime("5m")
+        .setIssuer(claims.issuer ?? issuerUrl)
+        .setAudience(claims.audience ?? "https://mcp.example.com/mcp")
+        .setSubject(claims.sub)
+        .setIssuedAt(claims.issuedAt)
+        .setExpirationTime(claims.expirationTime ?? "5m")
         .sign(privateKey),
   };
 }
